@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>世界杯实时预测</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body { background: #0b0e17; color: #eee; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { font-size: 2.5rem; margin-bottom: 0.3rem; background: linear-gradient(135deg, #f7b731, #f5a623); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .sub { color: #8892a0; font-size: 0.95rem; margin-bottom: 2rem; border-bottom: 1px solid #1f2a3a; padding-bottom: 1rem; }
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+        .card { background: #141c2b; border-radius: 20px; padding: 24px; border: 1px solid #243044; transition: all 0.2s; }
+        .card:hover { border-color: #f7b731; box-shadow: 0 8px 30px rgba(247, 183, 49, 0.1); }
+        .match-title { font-size: 1.6rem; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+        .vs { color: #8892a0; font-weight: 400; font-size: 1.2rem; }
+        .xg { background: #1f2a3a; border-radius: 30px; padding: 4px 14px; font-size: 0.85rem; color: #b0c4de; margin-top: 6px; display: inline-block; }
+        .score-row { display: flex; justify-content: space-around; margin: 18px 0 12px; }
+        .score-box { text-align: center; }
+        .score-num { font-size: 2.8rem; font-weight: 800; color: #fff; }
+        .score-label { color: #8892a0; font-size: 0.8rem; text-transform: uppercase; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 30px; font-size: 0.75rem; font-weight: 600; }
+        .badge-win { background: #2e7d32; color: #c8e6c9; }
+        .badge-draw { background: #f57c00; color: #fff3e0; }
+        .badge-loss { background: #c62828; color: #ffcdd2; }
+        .prob-list { margin-top: 16px; border-top: 1px solid #1f2a3a; padding-top: 14px; }
+        .prob-item { display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.9rem; border-bottom: 1px solid #0f1724; }
+        .prob-bar { background: #243044; height: 4px; border-radius: 10px; margin-top: 4px; }
+        .prob-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg, #f7b731, #f5a623); }
+        .meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; font-size: 0.8rem; color: #8892a0; }
+        .meta span { background: #0f1724; padding: 3px 12px; border-radius: 30px; }
+        .update-time { text-align: right; color: #556; font-size: 0.8rem; margin-top: 30px; }
+        .empty { text-align: center; padding: 60px 0; color: #556; }
+        @media (max-width: 600px) { .card-grid { grid-template-columns: 1fr; } .score-num { font-size: 2.2rem; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>⚽ 2026 世界杯 · 实时预测</h1>
+    <div class="sub">基于42维精进框架 · 每30分钟自动更新</div>
+    <div id="cardContainer" class="card-grid"></div>
+    <div id="updateTime" class="update-time"></div>
+</div>
+<script>
+    async function fetchData() {
+        try {
+            const res = await fetch('data.json?t=' + Date.now());
+            if (!res.ok) throw new Error('数据文件未找到');
+            const data = await res.json();
+            render(data);
+        } catch (e) {
+            document.getElementById('cardContainer').innerHTML = `<div class="empty">⏳ 等待数据生成...<br><span style="font-size:0.8rem;">请确保已运行 predict.py 并提交 data.json</span></div>`;
+        }
+    }
+
+    function render(data) {
+        const container = document.getElementById('cardContainer');
+        container.innerHTML = '';
+        if (!data.matches || data.matches.length === 0) {
+            container.innerHTML = '<div class="empty">暂无比赛预测</div>';
+            return;
+        }
+        data.matches.forEach(m => {
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            // 结果标签
+            let resultBadge = '';
+            if (m.result === '主胜') resultBadge = '<span class="badge badge-win">主胜</span>';
+            else if (m.result === '客胜') resultBadge = '<span class="badge badge-loss">客胜</span>';
+            else resultBadge = '<span class="badge badge-draw">平局</span>';
+
+            // 比分概率列表（前4个）
+            let probsHtml = '';
+            if (m.scores && m.scores.length) {
+                probsHtml = '<div class="prob-list">';
+                m.scores.slice(0, 4).forEach(s => {
+                    probsHtml += `
+                        <div class="prob-item">
+                            <span>${s.home} - ${s.away}</span>
+                            <span>${s.prob}%</span>
+                        </div>
+                        <div class="prob-bar"><div class="prob-fill" style="width:${s.prob}%"></div></div>
+                    `;
+                });
+                probsHtml += '</div>';
+            }
+
+            card.innerHTML = `
+                <div class="match-title">
+                    <span>${m.home} <span class="vs">vs</span> ${m.away}</span>
+                    ${resultBadge}
+                </div>
+                <div class="xg">预期进球 ${m.home_xg} - ${m.away_xg}</div>
+                <div class="score-row">
+                    <div class="score-box"><div class="score-num">${m.home_xg}</div><div class="score-label">${m.home}</div></div>
+                    <div class="score-box" style="color:#8892a0;font-size:1.8rem;">⚡</div>
+                    <div class="score-box"><div class="score-num">${m.away_xg}</div><div class="score-label">${m.away}</div></div>
+                </div>
+                ${probsHtml}
+                <div class="meta">
+                    <span>🧠 置信度 ${m.confidence}</span>
+                    <span>⚠️ 风险 ${m.risk}</span>
+                    <span>⚽ BTS ${m.bts}</span>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        document.getElementById('updateTime').textContent = `最后更新：${data.last_updated || '未知'}`;
+    }
+
+    fetchData();
+    setInterval(fetchData, 60000); // 每分钟刷新
+</script>
+</body>
+</html>
